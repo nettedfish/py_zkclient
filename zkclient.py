@@ -217,9 +217,9 @@ class Message(object):
         self.count += 1
 
 
-class NotifyTask():
+class NotifyTask(object):
     def __init__(self):
-        super(NotifyTask, self).__init__(name='NotifyTask')
+        #super(NotifyTask, self).__init__(name='NotifyTask')
         self.zk_client = None
         self.messages = Queue.Queue()
     
