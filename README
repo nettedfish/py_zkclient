@@ -1,0 +1,13 @@
+
+
+deps:
+1. zc-zookeeper-static
+$ pip install zc-zookeeper-static
+
+
+install:
+$ python setup.py install
+
+
+tips:
+1. virtualenv may be a good tool for you
