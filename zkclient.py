@@ -11,7 +11,7 @@ import zookeeper
 
 ZOO_OPEN_ACL_UNSAFE = {"perms": 0x1f, "scheme": "world", "id": "anyone"}
 
-zk_logger = logging.getLogger('zkclient')
+zk_logger = logging.getLogger('py_zkclient')
 
 
 class ZkException(Exception):
@@ -47,13 +47,24 @@ class NodeChildrenListener(Listener):
 
 # TODO: ZkClient singleton GetInstance() , like tornaode impl
 class ZkClient(object):
-    def __init__(self, host): # host such as '127.0.0.1:2181' or '192.168.20.1:2181,192.168.20.2:2181'
+    # host such as '127.0.0.1:2181' or '192.168.20.1:2181,192.168.20.2:2181'
+    def __init__(self, host, zk_log_path='/dev/null'):
         CV = threading.Condition()
         self.host = host
         self.handle = None
-        #zookeeper.set_log_stream(sys.stdout) # default zk log output to stderr, so I change it from stderr to stdout
+        zookeeper.set_debug_level(zookeeper.LOG_LEVEL_WARN)
+        log_stream = None
+        try:
+            log_stream = open(zk_log_path, 'a+')
+        except IOError, e:
+            zk_logger.error(e)
+        if log_stream:
+            zookeeper.set_log_stream(log_stream)
+        else: #zookeeper.set_log_stream(sys.stdout) # default zk log output to stderr, so I change it from stderr to stdout
+            zookeeper.set_log_stream(sys.stdout)
+
         def EventWatcher(handle, type, state, path):
-            print 'handle: %d, type: %d, state: %d, path: %s' % (handle, type, state, path)
+            zk_logger.info('handle: %d, type: %d, state: %d, path: %s' % (handle, type, state, path))
             if type == zookeeper.SESSION_EVENT:
                 CV.acquire()
                 if state == zookeeper.CONNECTED_STATE:
@@ -95,7 +106,7 @@ class ZkClient(object):
                     except Exception, e:
                         zk_logger.error(e)
             else:
-                print 'SHIT_EVENT'
+                zk_logger.info('SHIT_EVENT')
 
 
         CV.acquire()
@@ -147,33 +158,41 @@ class ZkClient(object):
 
     def Create(self, path, value, flag):
         try:
-            zookeeper.create(self.handle, path, value, [ZOO_OPEN_ACL_UNSAFE], flag)
+            return zookeeper.create(self.handle, path, value, [ZOO_OPEN_ACL_UNSAFE], flag)
         except zookeeper.ZooKeeperException, e:
-            print str(e)
+            zk_logger.error(e)
 
     def Get(self, path, watch):
         try:
             (data, stat) = zookeeper.get(self.handle, path, self.watcher_fn if watch else None)
             return (data, stat)
         except zookeeper.ZooKeeperException, e:
-            print str(e)
-            return None
+            zk_logger.error(e)
 
     def Set(self, path, value, version):
-        zookeeper.set(self.handle, path, value, version)
+        try:
+            return zookeeper.set(self.handle, path, value, version)
+        except zookeeper.ZooKeeperException, e:
+            zk_logger.error(e)
 
     def GetChildren(self, path, watch):
         try:
             return zookeeper.get_children(self.handle, path, self.watcher_fn if watch else None)
         except zookeeper.ZooKeeperException, e:
-            print str(e)
-            return []
+            zk_logger.error(e)
 
     def Delete(self, path):
-        zookeeper.delete(self.handle, path)
+        try:
+            return zookeeper.delete(self.handle, path)
+        except zookeeper.ZooKeeperException, e:
+            zk_logger.error(e)
 
     def Exist(self, path, watch):
-        zookeeper.exists(self.handle, path, self.watcher_fn if watch else None)
+        try:
+            zookeeper.exists(self.handle, path, self.watcher_fn if watch else None)
+        except zookeeper.ZooKeeperException, e:
+            zk_logger.error(e)
+
 
     def _UpdateChildren(self, path):
         # TODO
@@ -190,6 +209,7 @@ class ZkClient(object):
     def _UpdateAll(self):
         # TODO
         pass
+
 
 class Message(object):
     NODE_CREATED = 100
@@ -222,7 +242,7 @@ class NotifyTask(object):
         #super(NotifyTask, self).__init__(name='NotifyTask')
         self.zk_client = None
         self.messages = Queue.Queue()
-    
+
     def set_zkclient(self, client):
         self.zk_client = client
 
@@ -263,7 +283,5 @@ class NotifyTask(object):
 if __name__ == '__main__':
     zk_client = ZkClient('127.0.0.1:2181')
     path = '/test'
-    val = zk_client.Get(path, True)
-    (data, stat) = val
-    print data
-    time.sleep(100)
+    print zk_client.Create(path, '123', zookeeper.EPHEMERAL)
+    time.sleep(10)
