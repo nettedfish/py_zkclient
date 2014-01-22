@@ -189,7 +189,7 @@ class ZkClient(object):
 
     def Exist(self, path, watch):
         try:
-            zookeeper.exists(self.handle, path, self.watcher_fn if watch else None)
+            return zookeeper.exists(self.handle, path, self.watcher_fn if watch else None)
         except zookeeper.ZooKeeperException, e:
             zk_logger.error(e)
 
