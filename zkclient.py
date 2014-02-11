@@ -1,6 +1,5 @@
 __author__ = 'michael'
 
-import os
 import sys
 import logging
 import Queue
@@ -57,13 +56,15 @@ CV = threading.Condition()
 
 class ZkClient(object):
     # host such as '127.0.0.1:2181' or '192.168.20.1:2181,192.168.20.2:2181'
-    def __init__(self, host, zk_log_path='/dev/null'):
+    def __init__(self, host, zk_log_path=None):
         self.host = host
         self.handle = None
+        self.first = True
         zookeeper.set_debug_level(zookeeper.LOG_LEVEL_WARN)
         log_stream = None
         try:
-            log_stream = open(zk_log_path, 'a+')
+            if zk_log_path:
+                log_stream = open(zk_log_path, 'a+')
         except IOError, e:
             zk_logger.error(e)
         if log_stream:
@@ -74,17 +75,35 @@ class ZkClient(object):
         def EventWatcher(handle, type, state, path):
             zk_logger.info('handle: %d, type: %d, state: %d, path: %s' % (handle, type, state, path))
             if type == zookeeper.SESSION_EVENT:
-                CV.acquire()
+                #CV.acquire()
                 if state == zookeeper.CONNECTED_STATE:
-                    self.connected = True
+                    CV.acquire()
                     self.handle = handle
+                    self.connected = True
+                    if not self.first:
+                        self.notify_task.AddMessage(Message("", Message.NODE_REFRESH))
+                        zk_logger.info("New ZkClient started")
+                    CV.notify()
+                    CV.release()
                 elif state == zookeeper.EXPIRED_SESSION_STATE:
-                    # TODO reconnect, refresh
-                    pass
+                    try:
+                        CV.acquire()
+                        self.first = False
+                        self.watcher_fn = EventWatcher
+                        try: # release former resource
+                            zookeeper.close(self.handle)
+                        except Exception, e:
+                            zk_logger.error(e)
+                        ret = zookeeper.init(self.host, self.watcher_fn)
+                        zk_logger.debug("after calling zookeeper.init on EXPIRED_SESSION_STATE, ret: %d", ret)
+                        CV.wait()
+                    finally:
+                        CV.release()
+
                 elif state == zookeeper.CONNECTING_STATE:
                     pass
-                CV.notify()
-                CV.release()
+                    #CV.notify()
+                    #CV.release()
             elif type == zookeeper.CHANGED_EVENT:
                 if path:
                     self.notify_task.AddMessage(Message(path, Message.NODE_DATA_CHANGED))
@@ -120,13 +139,14 @@ class ZkClient(object):
         CV.acquire()
         self.watcher_fn = EventWatcher
         ret = zookeeper.init(self.host, self.watcher_fn)
+        zk_logger.debug("after calling zookeeper.init, ret: %d", ret)
         CV.wait()
         CV.release()
 
         self.node_data_listeners = {} # string to listener array
-        self.node_data_listener_lock = threading.Lock()
+        self.node_data_listener_lock = threading.RLock()
         self.children_listeners = {}  # string to listener array
-        self.children_listener_lock = threading.Lock()
+        self.children_listener_lock = threading.RLock()
 
         self.notify_task = NotifyTask()
         self.notify_task.set_zkclient(self)
@@ -134,19 +154,24 @@ class ZkClient(object):
         self.notify_thread.setDaemon(True)
         self.notify_thread.start()
 
+    def Close(self):
+        CV.acquire()
+        try:
+            self.notify_task.shutdown = True
+            zookeeper.close(self.handle)
+        finally:
+            CV.release()
+
 
     def AddNodeDataListener(self, listener):
         try:
             self.node_data_listener_lock.acquire()
-            zk_logger.debug(self.node_data_listeners)
             if isinstance(listener, NodeDataListener):
                 path = listener.get_znode_path()
-                zk_logger.debug(path)
                 if path in self.node_data_listeners:
                     self.node_data_listeners[path].append(listener)
                 else:
                     self.node_data_listeners[path] = [listener]
-            zk_logger.debug(self.node_data_listeners)
         except TypeError, err:
             zk_logger.error(err)
         finally:
@@ -280,8 +305,19 @@ class ZkClient(object):
             self.node_data_listener_lock.release()
 
     def _UpdateAll(self):
-        # TODO
-        pass
+        try:
+            self.node_data_listener_lock.acquire()
+            for node_path in self.node_data_listeners.iterkeys():
+                self._UpdateNode(node_path)
+        finally:
+            self.node_data_listener_lock.release()
+
+        try:
+            self.children_listener_lock.acquire()
+            for node_path in self.children_listeners.iterkeys():
+                self._UpdateChildren(node_path)
+        finally:
+            self.children_listener_lock.release()
 
 
 class Message(object):
@@ -315,6 +351,7 @@ class NotifyTask(object):
         #super(NotifyTask, self).__init__(name='NotifyTask')
         self.zk_client = None
         self.messages = Queue.Queue()
+        self.shutdown = False
 
     def set_zkclient(self, client):
         self.zk_client = client
@@ -323,8 +360,17 @@ class NotifyTask(object):
         self.messages.put(msg)
 
     def __call__(self, *args, **kwargs):
-        while True:
-            msg = self.messages.get()
+        while not self.shutdown:
+            msg = None
+            try:
+                msg = self.messages.get(True, 1) # block to get and timeout is one sec
+            except Exception, e:
+                # do nothing
+                zk_logger.debug('get msg timeout from Message Queue of NotifyTask')
+                pass
+
+            if not msg:
+                continue
             if not self.zk_client:
                 zk_logger.error('NotifyTask has no zkclient')
                 continue
@@ -335,30 +381,29 @@ class NotifyTask(object):
             ret = False
             if type == Message.NODE_CHILDREN_CHANGED:
                 ret = self.zk_client._UpdateChildren(msg.get_path())
-                pass
             elif type == Message.NODE_CREATED:
                 ret = self.zk_client._UpdateNode(msg.get_path())
-                pass
             elif type == Message.NODE_DELETED:
                 ret = self.zk_client._DeleteNode(msg.get_path())
-                pass
             elif type == Message.NODE_DATA_CHANGED:
                 ret = self.zk_client._UpdateNode(msg.get_path())
-                pass
             elif type == Message.NODE_REFRESH:
-                ret = self.zk_client._UpdateAll()
-                pass
+                self.zk_client._UpdateAll()
+                ret = True
             if not ret:
                 msg.Inc()
                 self.messages.put(msg)
+        zk_logger.debug('NotifyTask is shutdown.')
 
-'''
+
 if __name__ == '__main__':
-    zk_client = ZkClient('127.0.0.1:2181')
-    path = '/test4'
+    # zk_client = ZkClient('127.0.0.1:2181', '/dev/null')
+    # zk_client = ZkClient('127.0.0.1:2181', 'a.log')
+    # path = '/test4'
     # print zk_client.Create(path, '123', zookeeper.EPHEMERAL)
     # print zk_client.Exist(path, True)
     # print zk_client.Delete(path)
-    print zk_client.GetChildren("/test13", False)
-    time.sleep(3)
-'''
+    #print zk_client.GetChildren("/test13", False)
+    # zk_client.Close()
+    time.sleep(300)
+
