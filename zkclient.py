@@ -199,6 +199,7 @@ class ZkClient(object):
             return zookeeper.create(self.handle, path, value, [ZOO_OPEN_ACL_UNSAFE], flag)
         except zookeeper.ZooKeeperException, e:
             zk_logger.error(e)
+            raise e
         finally:
             CV.release()
 
@@ -209,6 +210,7 @@ class ZkClient(object):
             return (data, stat)
         except zookeeper.ZooKeeperException, e:
             zk_logger.error(e)
+            raise e
         finally:
             CV.release()
 
@@ -218,6 +220,7 @@ class ZkClient(object):
             return zookeeper.set(self.handle, path, value, version)
         except zookeeper.ZooKeeperException, e:
             zk_logger.error(e)
+            raise e
         finally:
             CV.release()
 
@@ -227,6 +230,7 @@ class ZkClient(object):
             return zookeeper.get_children(self.handle, path, self.watcher_fn if watch else None)
         except zookeeper.ZooKeeperException, e:
             zk_logger.error(e)
+            raise e
         finally:
             CV.release()
 
@@ -236,6 +240,7 @@ class ZkClient(object):
             return zookeeper.delete(self.handle, path)
         except zookeeper.ZooKeeperException, e:
             zk_logger.error(e)
+            raise e
         finally:
             CV.release()
 
@@ -245,6 +250,7 @@ class ZkClient(object):
             return zookeeper.exists(self.handle, path, self.watcher_fn if watch else None)
         except zookeeper.ZooKeeperException, e:
             zk_logger.error(e)
+            raise e
         finally:
             CV.release()
 
@@ -406,4 +412,5 @@ if __name__ == '__main__':
     #print zk_client.GetChildren("/test13", False)
     # zk_client.Close()
     time.sleep(300)
+
 
