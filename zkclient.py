@@ -12,10 +12,9 @@ ZOO_OPEN_ACL_UNSAFE = {"perms": 0x1f, "scheme": "world", "id": "anyone"}
 
 zk_logger = logging.getLogger('py_zkclient')
 # logger starts
-logger = logging.getLogger('putin')
 #let me show you a very nice log out format, such as [<process_id>:<thread_id>:<log_level>:<time>:<file>(<lineno>)] msg
-LOG_FORMAT = "[%(process)d:%(thread)d:%(levelname)s:%(asctime)s:%(filename)s(%(lineno)d)] %(message)s"
-logging.basicConfig(level=logging.DEBUG, stream=sys.stdout, format=LOG_FORMAT, datefmt='%Y%m%d%H%M%S')
+# LOG_FORMAT = "[%(process)d:%(thread)d:%(levelname)s:%(asctime)s:%(filename)s(%(lineno)d)] %(message)s"
+# logging.basicConfig(level=logging.DEBUG, stream=sys.stdout, format=LOG_FORMAT, datefmt='%Y%m%d%H%M%S')
 # logger ends
 
 
@@ -410,6 +409,8 @@ if __name__ == '__main__':
     # print zk_client.Delete(path)
     #print zk_client.GetChildren("/test13", False)
     # zk_client.Close()
-    time.sleep(300)
+    zk_client = ZkClient('127.0.0.1:2181')
+    # print zk_client.GetChildren('/', False)
+    time.sleep(3)
 
 
