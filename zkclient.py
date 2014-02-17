@@ -50,13 +50,12 @@ class NodeChildrenListener(Listener):
     def Update(self, children_name_list):
         pass
 
-# TODO: ZkClient singleton GetInstance() , like tornaode impl
-CV = threading.Condition()
-
-
+# TODO: ZkClient singleton? like tornado impl.
+# TODO: Do I need that? Take it into consideration
 class ZkClient(object):
     # host such as '127.0.0.1:2181' or '192.168.20.1:2181,192.168.20.2:2181'
     def __init__(self, host, zk_log_path=None):
+        self.cv = threading.Condition()
         self.host = host
         self.handle = None
         self.first = True
@@ -75,19 +74,19 @@ class ZkClient(object):
         def EventWatcher(handle, type, state, path):
             zk_logger.info('handle: %d, type: %d, state: %d, path: %s' % (handle, type, state, path))
             if type == zookeeper.SESSION_EVENT:
-                #CV.acquire()
+                #self.cv.acquire()
                 if state == zookeeper.CONNECTED_STATE:
-                    CV.acquire()
+                    self.cv.acquire()
                     self.handle = handle
                     self.connected = True
                     if not self.first:
                         self.notify_task.AddMessage(Message("", Message.NODE_REFRESH))
                         zk_logger.info("New ZkClient started")
-                    CV.notify()
-                    CV.release()
+                    self.cv.notify()
+                    self.cv.release()
                 elif state == zookeeper.EXPIRED_SESSION_STATE:
                     try:
-                        CV.acquire()
+                        self.cv.acquire()
                         self.first = False
                         self.watcher_fn = EventWatcher
                         try: # release former resource
@@ -96,14 +95,14 @@ class ZkClient(object):
                             zk_logger.error(e)
                         ret = zookeeper.init(self.host, self.watcher_fn)
                         zk_logger.debug("after calling zookeeper.init on EXPIRED_SESSION_STATE, ret: %d", ret)
-                        CV.wait()
+                        self.cv.wait()
                     finally:
-                        CV.release()
+                        self.cv.release()
 
                 elif state == zookeeper.CONNECTING_STATE:
                     pass
-                    #CV.notify()
-                    #CV.release()
+                    #self.cv.notify()
+                    #self.cv.release()
             elif type == zookeeper.CHANGED_EVENT:
                 if path:
                     self.notify_task.AddMessage(Message(path, Message.NODE_DATA_CHANGED))
@@ -136,12 +135,12 @@ class ZkClient(object):
                 zk_logger.info('SHIT_EVENT')
 
 
-        CV.acquire()
+        self.cv.acquire()
         self.watcher_fn = EventWatcher
         ret = zookeeper.init(self.host, self.watcher_fn)
         zk_logger.debug("after calling zookeeper.init, ret: %d", ret)
-        CV.wait()
-        CV.release()
+        self.cv.wait()
+        self.cv.release()
 
         self.node_data_listeners = {} # string to listener array
         self.node_data_listener_lock = threading.RLock()
@@ -155,12 +154,12 @@ class ZkClient(object):
         self.notify_thread.start()
 
     def Close(self):
-        CV.acquire()
+        self.cv.acquire()
         try:
             self.notify_task.shutdown = True
             zookeeper.close(self.handle)
         finally:
-            CV.release()
+            self.cv.release()
 
 
     def AddNodeDataListener(self, listener):
@@ -194,17 +193,17 @@ class ZkClient(object):
 
 
     def Create(self, path, value, flag):
-        CV.acquire()
+        self.cv.acquire()
         try:
             return zookeeper.create(self.handle, path, value, [ZOO_OPEN_ACL_UNSAFE], flag)
         except zookeeper.ZooKeeperException, e:
             zk_logger.error(e)
             raise e
         finally:
-            CV.release()
+            self.cv.release()
 
     def Get(self, path, watch):
-        CV.acquire()
+        self.cv.acquire()
         try:
             (data, stat) = zookeeper.get(self.handle, path, self.watcher_fn if watch else None)
             return (data, stat)
@@ -212,47 +211,47 @@ class ZkClient(object):
             zk_logger.error(e)
             raise e
         finally:
-            CV.release()
+            self.cv.release()
 
     def Set(self, path, value, version):
-        CV.acquire()
+        self.cv.acquire()
         try:
             return zookeeper.set(self.handle, path, value, version)
         except zookeeper.ZooKeeperException, e:
             zk_logger.error(e)
             raise e
         finally:
-            CV.release()
+            self.cv.release()
 
     def GetChildren(self, path, watch):
-        CV.acquire()
+        self.cv.acquire()
         try:
             return zookeeper.get_children(self.handle, path, self.watcher_fn if watch else None)
         except zookeeper.ZooKeeperException, e:
             zk_logger.error(e)
             raise e
         finally:
-            CV.release()
+            self.cv.release()
 
     def Delete(self, path):
-        CV.acquire()
+        self.cv.acquire()
         try:
             return zookeeper.delete(self.handle, path)
         except zookeeper.ZooKeeperException, e:
             zk_logger.error(e)
             raise e
         finally:
-            CV.release()
+            self.cv.release()
 
     def Exist(self, path, watch):
-        CV.acquire()
+        self.cv.acquire()
         try:
             return zookeeper.exists(self.handle, path, self.watcher_fn if watch else None)
         except zookeeper.ZooKeeperException, e:
             zk_logger.error(e)
             raise e
         finally:
-            CV.release()
+            self.cv.release()
 
 
     def _UpdateChildren(self, path):
