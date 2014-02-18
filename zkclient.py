@@ -152,6 +152,26 @@ class ZkClient(object):
         self.notify_thread.setDaemon(True)
         self.notify_thread.start()
 
+    __zk_client_dict = {}
+    __zk_client_dict_lock = threading.Lock()
+
+    @staticmethod
+    def GetInstance(zk_address, log_path='/tmp/zk.log'):
+        if not zk_address:
+            return None
+        zk_client = None
+        ZkClient.__zk_client_dict_lock.acquire()
+        try:
+            zk_client = ZkClient.__zk_client_dict.get(zk_address)
+
+            if not zk_client:
+                zk_client = ZkClient(zk_address, log_path)
+                ZkClient.__zk_client_dict[zk_address] = zk_client
+
+            return zk_client
+        finally:
+            ZkClient.__zk_client_dict_lock.release()
+
     def Close(self):
         self.cv.acquire()
         try:
@@ -409,7 +429,10 @@ if __name__ == '__main__':
     # print zk_client.Delete(path)
     #print zk_client.GetChildren("/test13", False)
     # zk_client.Close()
-    zk_client = ZkClient('127.0.0.1:2181')
+    # zk_client = ZkClient.GetInstance('127.0.0.1:2181')
+    # print '%x' % zk_client.__hash__()
+    # print ZkClient.GetInstance('127.0.0.1:2181')
+    # print '%x' % ZkClient.GetInstance('l-agdb1.dba.dev.cn6.qunar.com:2181').__hash__()
     # print zk_client.GetChildren('/', False)
     time.sleep(3)
 
