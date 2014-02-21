@@ -1,12 +1,10 @@
-from distutils.core import setup
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+# vim: tabstop=4 shiftwidth=4 softtabstop=4 et
 
-setup(
-    name='zkclient',
-    version='1.1',
-    packages=[''],
-    url='https://github.com/airhuman/py_zkclient.git',
-    license='',
-    author='Michael',
-    author_email='liyong19861014@gmail.com',
-    description=''
+import setuptools
+
+setuptools.setup(
+    setup_requires=['pbr'],
+    pbr=True
 )
