@@ -1,14 +1,3 @@
-
-
-deps:
-1. zc-zookeeper-static
-$ pip install zc-zookeeper-static
-
-optional deps:
-1. yaml
-$ pip install PyYAML
-
-
 install:
 $ python setup.py install
 
