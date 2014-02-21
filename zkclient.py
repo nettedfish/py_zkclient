@@ -11,11 +11,6 @@ import zookeeper
 ZOO_OPEN_ACL_UNSAFE = {"perms": 0x1f, "scheme": "world", "id": "anyone"}
 
 zk_logger = logging.getLogger('py_zkclient')
-# logger starts
-#let me show you a very nice log out format, such as [<process_id>:<thread_id>:<log_level>:<time>:<file>(<lineno>)] msg
-# LOG_FORMAT = "[%(process)d:%(thread)d:%(levelname)s:%(asctime)s:%(filename)s(%(lineno)d)] %(message)s"
-# logging.basicConfig(level=logging.DEBUG, stream=sys.stdout, format=LOG_FORMAT, datefmt='%Y%m%d%H%M%S')
-# logger ends
 
 
 class ZkException(Exception):

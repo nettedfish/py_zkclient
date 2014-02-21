@@ -1,0 +1,29 @@
+version: 1
+
+formatters:
+    common:
+        format: '[%(process)d:%(thread)d:%(levelname)s:%(asctime)s:%(filename)s(%(lineno)d)] %(message)s'
+
+handlers:
+    console:
+        class: logging.StreamHandler
+        formatter: common
+        level: DEBUG
+        stream: ext://sys.stdout
+    timed_rotating_file:
+        class: logging.handlers.TimedRotatingFileHandler
+        formatter: common
+        level: DEBUG
+        when: D # maybe hour(H) is better
+        interval: 1
+        backupCount: 20
+        filename: zk.log
+
+loggers:
+    py_zkclient:
+        level: DEBUG
+        handlers: [timed_rotating_file]
+
+root:
+    level: OFF
+    handlers: []
