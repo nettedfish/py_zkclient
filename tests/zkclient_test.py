@@ -11,11 +11,13 @@ class MyNodeDataListener(zkclient.NodeDataListener):
         self.id = id
 
     def Update(self, value):
-        print 'MyNodeDataListener.Update() path:%s\tnewvalue:%s, id:%s' % (self.get_znode_path(), value, self.id)
+        print 'MyNodeDataListener.Update() path:%s\tnewvalue:%s, id:%s' % (
+            self.get_znode_path(), value, self.id)
         return True
 
     def Delete(self):
-        print "MyNodeDataListener.Delete() path:%s, id:%d" % (self.get_znode_path(), self.id)
+        print "MyNodeDataListener.Delete() path:%s, id:%d" % (
+            self.get_znode_path(), self.id)
         return True
 
 
@@ -25,9 +27,9 @@ class MyNodeChildrenListener(zkclient.NodeChildrenListener):
         self.id = id
 
     def Update(self, children_name_list):
-        print 'MyNodeChildrenListener.Update() children_name_list:%s, id:%d' % (children_name_list, self.id)
+        print 'MyNodeChildrenListener.Update() children_name_list:%s, id:%d' % (
+            children_name_list, self.id)
         return True
-
 
 
 class MyTestCase(unittest.TestCase):
@@ -44,6 +46,7 @@ class MyTestCase(unittest.TestCase):
 
     def tearDown(self):
         pass
+
 
 def Main():
     print 'test main'

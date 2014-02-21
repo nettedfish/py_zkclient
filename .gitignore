@@ -3,3 +3,4 @@ build
 *.pyc
 .venv
 pbr-*-py*.egg
+zkclient.egg-info
